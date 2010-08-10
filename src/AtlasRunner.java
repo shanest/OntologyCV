@@ -7,6 +7,8 @@ import java.util.Scanner;
 import org.apache.commons.collections.BidiMap;
 import org.apache.commons.collections.bidimap.TreeBidiMap;
 
+import edu.jhu.cis.Predicate;
+
 /**
  * 
  * Everything else I've used is in the edu.jhu.cis package, but because niftijlib is in the default package,
@@ -52,11 +54,46 @@ public class AtlasRunner {
 			populateLabels();
 		}
 		
+		double[][][] myocard_17 = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
+			
+			public boolean predicate(Double v) {
+				return v == 17;
+			}
+			
+		});
+		
 		System.out.println(LABELS.get(LV_ATLAS_DATA[128][203][162]));
+		
+		//test that filter worked
+		System.out.println(myocard_17[128][203][162]);
+		System.out.println(myocard_17[56][145][129]);
+		
 		//getKey: will be used in conjunction with results from FMA Query
 		System.out.println(LABELS.getKey("http://sig.biostr.washington.edu/fma3.0#Myocardial_zone_13"));
 		System.out.println(LV_T_DATA[128][180][133]);
 
+	}
+
+	//TODO think about re-making a Filterable3DDoubleArray class...
+	private static double[][][] filterByPredicate(double[][][] data,
+			Predicate<Double> P) {
+		double[][][] local = copyDouble3DArray(data);
+		for(int i = 0; i < local.length; i++)
+			for(int j = 0; j < local[i].length; j++)
+				for(int k = 0; k < local[i][j].length; k++)
+					if(P.predicate((Double) local[i][j][k]) == false)
+						local[i][j][k] = 0;
+		return local;
+	}
+	
+	private static double[][][] copyDouble3DArray(double[][][] source) {
+		double[][][] destination = new double[source.length][source[0].length][source[0][0].length];
+		
+		for(int i = 0; i < source.length; i++)
+			for(int j = 0; j < source[0].length; j++)
+				System.arraycopy(source[i][j], 0, destination[i][j], 0, source[i][j].length);
+		
+		return destination;
 	}
 
 	/**
