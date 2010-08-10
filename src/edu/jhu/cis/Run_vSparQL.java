@@ -42,6 +42,8 @@ public class Run_vSparQL {
 		Model results = runConstructQuery(fma_model, vSparQLString);
 		
 		writeModel(results, OUT_FILE);
+		
+		//ResultSetFormatter.out(System.out, runSelectQuery(selectFile));
 
 	}
 
