@@ -1,0 +1,32 @@
+PREFIX fma:<http://sig.biostr.washington.edu/fma3.0#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:<http://www.w3.org/2002/07/owl#>
+PREFIX gleen:<java:edu.washington.sig.gleen.>
+
+CONSTRUCT 
+{
+  ?x ?y ?z .
+}
+FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+FROM NAMED <heart_extended> [
+  CONSTRUCT { ?a ?r1 ?o1 . }
+  FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+  WHERE {
+    fma:Heart gleen:OnPath ("([fma:constitutional_part]|[fma:regional_part]|[fma:part])" ?a) .
+    ?a ?r1 ?o1 .
+  }
+
+  UNION
+
+  CONSTRUCT { ?b ?r2 ?o2 .}
+  FROM NAMED <heart_extended>
+  FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+  WHERE {
+    GRAPH <heart_extended> { ?x ?y ?z . } .
+    ?x gleen:OnPath ("([fma:constitutional_part]|[fma:regional_part]|[fma:part]|[fma:continuous_with]|[fma:bounded_by])" ?b) .
+    ?b ?r2 ?o2 .
+  }
+]
+WHERE {
+  GRAPH <heart_extended> { ?x ?y ?z } .
+}

@@ -1,0 +1,28 @@
+PREFIX fma:<http://sig.biostr.washington.edu/fma3.0#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:<http://www.w3.org/2002/07/owl#>
+PREFIX gleen:<java:edu.washington.sig.gleen.>
+
+CONSTRUCT 
+{
+  #?sup ?rel1 ?obj1 .
+  ?sub ?rel2 ?obj2 .
+}
+FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+FROM NAMED <heart_extended> [
+  CONSTRUCT { ?a ?r1 ?o1 . }
+  FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+  WHERE {
+    fma:Heart gleen:OnPath ("([fma:constitutional_part]|[fma:constitutional_part_of]|[fma:arterial_supply]|[fma:regional_part]|[fma:regional_part_of]|[fma:nerve_supply]|[fma:attaches_to]|[fma:lymphatic_drainage]|[fma:venous_drainage]|[fma:systematic_part_of]|[fma:bounded_by])*" ?a) .
+    ?a ?r1 ?o1 .
+  }
+]
+WHERE {
+  GRAPH <heart_extended> { ?a ?r1 ?o1 } .
+
+  #?a gleen:OnPath ("[rdfs:subClassOf]?" ?sup) .
+  #?sup ?rel1 ?obj1 .
+
+  ?sub gleen:OnPath ("[rdfs:subClassOf]*" ?a) .
+  ?sub ?rel2 ?obj2 .
+}
