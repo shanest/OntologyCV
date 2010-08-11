@@ -1,0 +1,11 @@
+PREFIX fma:<http://sig.biostr.washington.edu/fma3.0#>
+PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl:<http://www.w3.org/2002/07/owl#>
+PREFIX gleen:<java:edu.washington.sig.gleen.>
+
+SELECT ?x
+FROM </cis/home/shanest/PURA/fma_v3.0.owl>
+
+WHERE {
+	?x gleen:OnPath ("[rdfs:subClassOf]*" fma:Region_of_myocardium) .
+}

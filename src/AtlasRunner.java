@@ -2,12 +2,19 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 import org.apache.commons.collections.BidiMap;
 import org.apache.commons.collections.bidimap.TreeBidiMap;
 
+import com.hp.hpl.jena.query.QuerySolution;
+import com.hp.hpl.jena.query.ResultSet;
+import com.hp.hpl.jena.rdf.model.Model;
+
 import edu.jhu.cis.Predicate;
+import edu.jhu.cis.Run_vSparQL;
 
 /**
  * 
@@ -23,10 +30,11 @@ import edu.jhu.cis.Predicate;
  */
 public class AtlasRunner {
 
+	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
 	private static final String ATLAS_DIR = "../HumanTemplate/";
 	private static final String ATLAS_VOL = "HeartAtlasFull.nii";
 	private static final String T_VOL = "ES2Atlas_4/snpmTneg_7-FSLAffine_def003.img";
-
+	
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
 	private static Nifti1Dataset LV_T = null;
 	// NOTE: [Z][Y][X] array
@@ -54,6 +62,10 @@ public class AtlasRunner {
 			populateLabels();
 		}
 		
+		//Result 1: which regions of myocardium are labelled in the atlas?
+		List<String> containedRegions = findLabelledRegions();
+		System.out.println(containedRegions.size() + ": " + containedRegions);
+		
 		double[][][] myocard_17 = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 			
 			public boolean predicate(Double v) {
@@ -72,6 +84,26 @@ public class AtlasRunner {
 		System.out.println(LABELS.getKey("http://sig.biostr.washington.edu/fma3.0#Myocardial_zone_13"));
 		System.out.println(LV_T_DATA[128][180][133]);
 
+	}
+
+	private static List<String> findLabelledRegions() {
+		List<String> results = new ArrayList<String>();
+		
+		//read in the myocardium regions
+		Model myocardium = Run_vSparQL.readOntologyFromFile(MYOCARDIUM_OWL);
+		ResultSet regions = Run_vSparQL.runSelectQuery(myocardium, Run_vSparQL.readQueryString("ontology/query/SubregionsMyocardium"));
+		//ResultSetFormatter.out(regions);
+		
+		QuerySolution region = null;
+		String regionStr = "";
+		while(regions.hasNext()) {
+			region = regions.next();
+			regionStr = region.get("?x").toString();
+			if(LABELS.containsValue(regionStr))
+				results.add(regionStr);
+		}
+		
+		return results;
 	}
 
 	//TODO think about re-making a Filterable3DDoubleArray class...

@@ -35,7 +35,7 @@ public class Run_vSparQL {
 
 	public static void main(String[] args) {
 
-		fma_model = readFMAFromFile(FMA_FILE);
+		fma_model = readOntologyFromFile(FMA_FILE);
 		
 		String vSparQLString = readQueryString(QUERY_FILE);
 		
@@ -47,7 +47,7 @@ public class Run_vSparQL {
 
 	}
 
-	protected static void writeModel(Model results, String fname) {
+	public static void writeModel(Model results, String fname) {
 		OutputStream outfile = null;
 		try {
 			outfile = new FileOutputStream(fname);
@@ -58,21 +58,21 @@ public class Run_vSparQL {
 		results.write(outfile);
 	}
 
-	protected static Model runConstructQuery(Model model, String vSparQLString) {
+	public static Model runConstructQuery(Model model, String vSparQLString) {
 		Query vSparQLQuery = QueryFactory.create(vSparQLString);
 		QueryExecution vSparQLqe = QueryExecutionFactory.create(vSparQLQuery,
 				model);
 		return vSparQLqe.execConstruct();
 	}
 	
-	protected static ResultSet runSelectQuery(Model model, String vSparQLString) {
+	public static ResultSet runSelectQuery(Model model, String vSparQLString) {
 		Query vSparQLQuery = QueryFactory.create(vSparQLString);
 		QueryExecution vSparQLqe = QueryExecutionFactory.create(vSparQLQuery,
 				model);
 		return vSparQLqe.execSelect();
 	}
 
-	protected static Model readFMAFromFile(String fmaFile) {
+	public static Model readOntologyFromFile(String fmaFile) {
 		InputStream in = null;
 		try {
 			in = new FileInputStream(new File(fmaFile));
@@ -91,7 +91,7 @@ public class Run_vSparQL {
 		return fma;
 	}
 
-	protected static String readQueryString(String fname) {
+	public static String readQueryString(String fname) {
 		String line = null, query = "";
 		BufferedReader in = null;
 		try {
