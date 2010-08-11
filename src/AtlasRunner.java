@@ -3,6 +3,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Scanner;
 
@@ -64,6 +66,15 @@ public class AtlasRunner {
 		
 		//Result 1: which regions of myocardium are labelled in the atlas?
 		List<String> containedRegions = findLabelledRegions();
+		Collections.sort(containedRegions, new Comparator<String>() {
+
+			//Myocardial_zone_1, Myocardial_zone_2, Myocardial_zone_3, ...
+			@Override
+			public int compare(String region1, String region2) {
+				return (int) (new Double(LABELS.getKey(region1).toString()) - new Double(LABELS.getKey(region2).toString()));
+			}
+			
+		});
 		System.out.println(containedRegions.size() + ": " + containedRegions);
 		
 		double[][][] myocard_17 = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
