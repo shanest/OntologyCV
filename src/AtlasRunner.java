@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 import org.apache.commons.collections.BidiMap;
@@ -34,14 +36,17 @@ public class AtlasRunner {
 
 	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
 	private static final String ATLAS_DIR = "../HumanTemplate/";
-	private static final String ATLAS_VOL = "HeartAtlasFull.nii";
-	private static final String T_VOL = "ES2Atlas_4/snpmTneg_7-FSLAffine_def003.img";
+	private static final String ATLAS_VOL = "HeartAtlasFull_aligned.nii";
+	private static final String T_VOL = "ES2Atlas_4/snpmTneg_7_Masked-FSLAffine_def003.img";
+	private static final String ROI_FILE = "ES2Atlas_4/ROI_significant-FSLAffine_def003.img";
 	
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
 	private static Nifti1Dataset LV_T = null;
+	private static Nifti1Dataset ROI = null;
 	// NOTE: [Z][Y][X] array
 	private static double[][][] LV_ATLAS_DATA = null;
 	private static double[][][] LV_T_DATA = null;
+	private static double[][][] ROI_DATA = null;
 	
 	//from aux_file
 	private static String LABEL_FILE = null;
@@ -50,8 +55,15 @@ public class AtlasRunner {
 
 	public static void main(String[] args) {
 		
+		//Reorienting deleted header info, restore here
+		//fixAtlasVolume();
+		
+		/**
+		 * PRELIMS / SETUP
+		 */
 		readAtlasVolume();
 		readTVolume();
+		readROIVolume();
 
 		if (HUMAN_LV_ATLAS.intent_code == Nifti1Dataset.NIFTI_INTENT_LABEL) {
 			//I obviously know the intent is LABEL, but this "if" is good practice
@@ -64,18 +76,23 @@ public class AtlasRunner {
 			populateLabels();
 		}
 		
+		/**
+		 * RESULTS
+		 */
+		
 		//Result 1: which regions of myocardium are labelled in the atlas?
-		List<String> containedRegions = findLabelledRegions();
-		Collections.sort(containedRegions, new Comparator<String>() {
+		//List<String> containedRegions = findLabelledRegions();
+		//System.out.println(containedRegions.size() + ": " + containedRegions);
+		
+		//RESULT: average T-values by region
+		Map<String, Float> avgTByRegion = avgTRegions();
+		
+		//RESULT: where is ROI located?
+		//Map<String, Integer> regionsOfInterest = countStrings(listROIMyocardium());
 
-			//Myocardial_zone_1, Myocardial_zone_2, Myocardial_zone_3, ...
-			@Override
-			public int compare(String region1, String region2) {
-				return (int) (new Double(LABELS.getKey(region1).toString()) - new Double(LABELS.getKey(region2).toString()));
-			}
-			
-		});
-		System.out.println(containedRegions.size() + ": " + containedRegions);
+		/**
+		 * TESTING
+		 */
 		
 		double[][][] myocard_17 = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 			
@@ -84,9 +101,6 @@ public class AtlasRunner {
 			}
 			
 		});
-		
-		System.out.println(LABELS.get(LV_ATLAS_DATA[128][203][162]));
-		
 		//test that filter worked
 		System.out.println(myocard_17[128][203][162]);
 		System.out.println(myocard_17[56][145][129]);
@@ -95,6 +109,147 @@ public class AtlasRunner {
 		System.out.println(LABELS.getKey("http://sig.biostr.washington.edu/fma3.0#Myocardial_zone_13"));
 		System.out.println(LV_T_DATA[128][180][133]);
 
+	}
+
+	private static Map<String, Float> avgTRegions() {
+		
+		Map<Integer, Integer> numVoxelsPerRegion = new HashMap<Integer, Integer>();
+		Map<Integer, Float> avgPerRegion = new HashMap<Integer, Float>();
+		
+		for(int seg = 0; seg < LABELS.size(); seg++) {
+			int numVoxels = 0;
+			float sum = 0;
+			final int segidx = seg;
+			
+			double[][][] curSeg = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
+				
+				public boolean predicate(Double v) {
+					return v == segidx;
+				}
+				
+			});
+				
+			for(int i = 0; i < curSeg.length; i++)
+				for(int j = 0; j < curSeg[i].length; j++)
+					for(int k = 0; k < curSeg[i][j].length; k++) {
+						if(curSeg[i][j][k] != 0 && LV_T_DATA[i][j][k] != 0) {
+							//TODO Figure out why some regions never meet the above, simple criterion of overlap
+							numVoxels++;
+							sum += LV_T_DATA[i][j][k];
+						}
+					}
+			
+			numVoxelsPerRegion.put(seg, numVoxels);
+			avgPerRegion.put(seg, sum / numVoxels);
+		}
+		
+		Map<String, Float> namedAvg = new HashMap<String, Float>();
+		for(int i = 0; i < avgPerRegion.size(); i++)
+			namedAvg.put((String) LABELS.get(new Double(i)), avgPerRegion.get(i));
+		
+		System.out.println(namedAvg);
+		return namedAvg;
+	}
+
+	/**
+	 * Returns a 17 x 256 x 256 x 256 array where resegment()[i] is the ith region of myocardium only.
+	 * 
+	 * @return a HUGE (be weary heap errors) array
+	 */
+	private static double[][][][] resegment() {
+		double[][][][] segments = new double[LABELS.size()][LV_ATLAS_DATA.length][LV_ATLAS_DATA.length][LV_ATLAS_DATA.length];
+		
+		for(int i = 0; i < 17; i++) {
+			final int ii = i;
+			segments[i] = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
+				
+				public boolean predicate(Double v) {
+					return v == ii;
+				}
+				
+			});
+		}
+		
+		return segments;
+	}
+
+	private static void fixAtlasVolume() {
+		Nifti1Dataset temp_atlas = new Nifti1Dataset(ATLAS_DIR + ATLAS_VOL);
+		
+		try {
+			temp_atlas.readHeader();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		temp_atlas.intent_code = Nifti1Dataset.NIFTI_INTENT_LABEL;
+		temp_atlas.aux_file = new StringBuffer("HeartAtlasLabels.txt");
+		temp_atlas.descrip = new StringBuffer("Full LV myocardium atlas");
+		
+		byte[] temp_data = null;
+		try {
+			temp_data = temp_atlas.readData();
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		
+		try {
+			temp_atlas.writeHeader();
+			temp_atlas.writeData(temp_data);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+	}
+
+	private static Map<String, Integer> countStrings(List<String> list) {
+		List<String> allVoxels = list;
+		Map<String, Integer> numVoxels = new HashMap<String, Integer>();
+		
+		int count = 0;
+		for(int i = 0; i < allVoxels.size() - 1; i++)
+			if(allVoxels.get(i).equals(allVoxels.get(i+1))) {
+				count++;
+			} else {
+				numVoxels.put(allVoxels.get(i), count);
+				count = 0;
+			}
+		
+		//only one string in allVoxels
+		if(numVoxels.size() == 0)
+			numVoxels.put(allVoxels.get(0), count);
+		
+		System.out.println(numVoxels);
+		return numVoxels;
+	}
+
+	/**
+	 * Generates a list of all the regions of myocardium in the ROI image.
+	 * Adds the label to list for every voxel, so that it can be counted how many voxels are in diff labelled regions.
+	 * 
+	 * @return the aforementioned list
+	 */
+	private static List<String> listROIMyocardium() {
+		List<String> results = new ArrayList<String>();
+		
+		int roiNotInAtlas = 0;
+		
+		for(int i = 0; i < ROI_DATA.length; i++)
+			for(int j = 0; j < ROI_DATA[i].length; j++)
+				for(int k = 0; k < ROI_DATA[i][j].length; k++)
+					if(ROI_DATA[i][j][k] != 0 && LV_ATLAS_DATA[i][j][k] != 0)
+						if(LV_ATLAS_DATA[i][j][k] == 0)
+							roiNotInAtlas++;
+						else
+							results.add((String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
+		
+		System.out.println("ROI Voxels not in Atlas: " + roiNotInAtlas);
+		Collections.sort(results, new MyocardStringComparator());
+		return results;
 	}
 
 	private static List<String> findLabelledRegions() {
@@ -114,8 +269,14 @@ public class AtlasRunner {
 				results.add(regionStr);
 		}
 		
+		Collections.sort(results, new MyocardStringComparator());
+		
 		return results;
 	}
+	
+	/**
+	 * PRELIMINARY HELPERS
+	 */
 
 	//TODO think about re-making a Filterable3DDoubleArray class...
 	private static double[][][] filterByPredicate(double[][][] data,
@@ -138,10 +299,6 @@ public class AtlasRunner {
 		
 		return destination;
 	}
-
-	/**
-	 * PRELIMINARY HELPERS
-	 */
 
 	private static Nifti1Dataset readVolume(String file) {
 		Nifti1Dataset nifti = new Nifti1Dataset(file);
@@ -175,6 +332,16 @@ public class AtlasRunner {
 			e.printStackTrace();
 		}
 	}
+	
+	private static void readROIVolume() {
+		ROI = readVolume(ATLAS_DIR + ROI_FILE);
+
+		try {
+			ROI_DATA = ROI.readDoubleVol((short) 0);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
 	private static void populateLabels() {
 		LABEL_FILE = HUMAN_LV_ATLAS.aux_file.toString();
@@ -194,6 +361,16 @@ public class AtlasRunner {
 		if (scan != null)
 			scan.close();
 
+	}
+	
+
+	private static final class MyocardStringComparator implements
+			Comparator<String> {
+		//Myocardial_zone_1, Myocardial_zone_2, Myocardial_zone_3, ...
+		@Override
+		public int compare(String region1, String region2) {
+			return (int) (new Double(LABELS.getKey(region1).toString()) - new Double(LABELS.getKey(region2).toString()));
+		}
 	}
 
 }
