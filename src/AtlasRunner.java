@@ -35,10 +35,10 @@ import edu.jhu.cis.Run_vSparQL;
 public class AtlasRunner {
 
 	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
-	private static final String ATLAS_DIR = "../HumanTemplate/";
-	private static final String ATLAS_VOL = "HeartAtlasFull_aligned.nii";
-	private static final String T_VOL = "ES2Atlas_4/snpmTneg_7_Masked-FSLAffine_def003.img";
-	private static final String ROI_FILE = "ES2Atlas_4/ROI_significant-FSLAffine_def003.img";
+	private static final String ATLAS_DIR = "../HumanTemplate/Atlas2ES_2/";
+	private static final String ATLAS_VOL = "HeartAtlasFull_seganal_FSL_def004.nii";
+	private static final String T_VOL = "snpmTneg_flip_resampled_7_Masked.img";
+	private static final String ROI_FILE = "ROI_significant_imageFWE-_resample.img";
 	
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
 	private static Nifti1Dataset LV_T = null;
@@ -65,16 +65,16 @@ public class AtlasRunner {
 		readTVolume();
 		readROIVolume();
 
-		if (HUMAN_LV_ATLAS.intent_code == Nifti1Dataset.NIFTI_INTENT_LABEL) {
+		//if (HUMAN_LV_ATLAS.intent_code == Nifti1Dataset.NIFTI_INTENT_LABEL) {
 			//I obviously know the intent is LABEL, but this "if" is good practice
 			
 			if(HUMAN_LV_ATLAS.aux_file == null) {
 				System.err.println("Atlas intent is Labels, but no label file specified in aux_file. Aborting.");
 				System.exit(0);
+			} else {	
+				populateLabels();
 			}
-				
-			populateLabels();
-		}
+		//}
 		
 		/**
 		 * RESULTS
@@ -88,11 +88,11 @@ public class AtlasRunner {
 		Map<String, Float> avgTByRegion = avgTRegions();
 		
 		//RESULT: where is ROI located?
-		//Map<String, Integer> regionsOfInterest = countStrings(listROIMyocardium());
+		Map<String, Integer> regionsOfInterest = countStrings(listROIMyocardium());
 
 		/**
 		 * TESTING
-		 */
+
 		
 		double[][][] myocard_17 = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 			
@@ -108,6 +108,7 @@ public class AtlasRunner {
 		//getKey: will be used in conjunction with results from FMA Query
 		System.out.println(LABELS.getKey("http://sig.biostr.washington.edu/fma3.0#Myocardial_zone_13"));
 		System.out.println(LV_T_DATA[128][180][133]);
+		*/
 
 	}
 
@@ -119,7 +120,7 @@ public class AtlasRunner {
 		for(int seg = 0; seg < LABELS.size(); seg++) {
 			int numVoxels = 0;
 			float sum = 0;
-			final int segidx = seg;
+			final int segidx = seg + 1;
 			
 			double[][][] curSeg = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 				
@@ -143,9 +144,10 @@ public class AtlasRunner {
 			avgPerRegion.put(seg, sum / numVoxels);
 		}
 		
+		System.out.println(avgPerRegion);
 		Map<String, Float> namedAvg = new HashMap<String, Float>();
 		for(int i = 0; i < avgPerRegion.size(); i++)
-			namedAvg.put((String) LABELS.get(new Double(i)), avgPerRegion.get(i));
+			namedAvg.put((String) LABELS.get((new Integer(i+1)).doubleValue()), avgPerRegion.get(i));
 		
 		System.out.println(namedAvg);
 		return namedAvg;
@@ -236,17 +238,25 @@ public class AtlasRunner {
 	private static List<String> listROIMyocardium() {
 		List<String> results = new ArrayList<String>();
 		
-		int roiNotInAtlas = 0;
+		int roiNotInAtlas = 0, totalROI = 0;
 		
 		for(int i = 0; i < ROI_DATA.length; i++)
 			for(int j = 0; j < ROI_DATA[i].length; j++)
 				for(int k = 0; k < ROI_DATA[i][j].length; k++)
-					if(ROI_DATA[i][j][k] != 0 && LV_ATLAS_DATA[i][j][k] != 0)
+					if(ROI_DATA[i][j][k] != 0)
+					{
+						totalROI++;
 						if(LV_ATLAS_DATA[i][j][k] == 0)
 							roiNotInAtlas++;
 						else
-							results.add((String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
+						{
+							//System.out.println(LV_ATLAS_DATA[i][j][k] + ": " + (String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
+							if(LV_ATLAS_DATA[i][j][k] % 1 == 0) //if an integer
+								results.add((String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
+						}
+					}
 		
+		System.out.println("Total ROI Voxels: " + totalROI);
 		System.out.println("ROI Voxels not in Atlas: " + roiNotInAtlas);
 		Collections.sort(results, new MyocardStringComparator());
 		return results;
@@ -350,7 +360,7 @@ public class AtlasRunner {
 		Scanner scan = null;
 		
 		try {
-			scan = new Scanner(new BufferedReader(new FileReader(ATLAS_DIR + LABEL_FILE)));
+			scan = new Scanner(new BufferedReader(new FileReader("../HumanTemplate/" + LABEL_FILE)));
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		}
