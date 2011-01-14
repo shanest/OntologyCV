@@ -35,10 +35,10 @@ import edu.jhu.cis.Run_vSparQL;
 public class AtlasRunner {
 
 	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
-	private static final String ATLAS_DIR = "../HumanTemplate/Atlas2ES_2/";
-	private static final String ATLAS_VOL = "HeartAtlasFull_seganal_FSL_def004.nii";
-	private static final String T_VOL = "snpmTneg_flip_resampled_7_Masked.img";
-	private static final String ROI_FILE = "ROI_significant_imageFWE-_resample.img";
+	private static final String ATLAS_DIR = "../HumanTemplate/Atlas2ES_3_noreorient/";
+	private static final String ATLAS_VOL = "HeartAtlasFull_seganal_reorient1_FSL_def004.nii";
+	private static final String T_VOL = "snpmTneg_flip.img";
+	private static final String ROI_FILE = "ROI_significant_imageFWE-.img";
 	
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
 	private static Nifti1Dataset LV_T = null;
