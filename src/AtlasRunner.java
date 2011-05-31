@@ -35,9 +35,10 @@ import edu.jhu.cis.Run_vSparQL;
 public class AtlasRunner {
 
 	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
-	private static final String ATLAS_DIR = "../HumanTemplate/Atlas2ES_3_noreorient/";
-	private static final String ATLAS_VOL = "HeartAtlasFull_seganal_reorient1_FSL_def004.nii";
-	private static final String T_VOL = "snpmTneg_flip.img";
+	private static final String ATLAS_DIR = "../HumanTemplate/Redux/NoResampleMapping/";
+	private static final String ATLAS_VOL = "NewAtlasDef004_anal_32bit_flipvert.img"; //converting to ANALYZE did not affect results, i.e. data array the same
+	//private static final String T_VOL = "snpmTneg_flip.img";
+	private static final String T_VOL = "snpmTnegflipMasked.img";
 	private static final String ROI_FILE = "ROI_significant_imageFWE-.img";
 	
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
@@ -120,7 +121,7 @@ public class AtlasRunner {
 		for(int seg = 0; seg < LABELS.size(); seg++) {
 			int numVoxels = 0;
 			float sum = 0;
-			final int segidx = seg + 1;
+			final int segidx = 10*(seg + 1); //10 b/c intensities in this atlas are mult by 10
 			
 			double[][][] curSeg = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 				
@@ -129,25 +130,32 @@ public class AtlasRunner {
 				}
 				
 			});
+			
+			//NOTE these segments don't fully partition the deformed Atlas, b/c there are "transitions" w/ intensities in between these 17
 				
 			for(int i = 0; i < curSeg.length; i++)
 				for(int j = 0; j < curSeg[i].length; j++)
 					for(int k = 0; k < curSeg[i][j].length; k++) {
-						if(curSeg[i][j][k] != 0 && LV_T_DATA[i][j][k] != 0) {
+						if(curSeg[i][j][k] != 0 && LV_T_DATA[i][j][k] != 0 /* && !((new Double(Double.NaN)).equals(new Double(LV_T_DATA[i][j][k]))) */) {
 							//TODO Figure out why some regions never meet the above, simple criterion of overlap
 							numVoxels++;
 							sum += LV_T_DATA[i][j][k];
+							//if((new Double(Double.NaN).equals(new Double(LV_T_DATA[i][j][k]))))
+							//System.out.println("Data: " + LV_T_DATA[i][j][k] + ", new sum: " + sum);
 						}
 					}
 			
+			System.out.println("Seg: " + seg + ", sum: " + sum + ", numVoxels: " + numVoxels);
 			numVoxelsPerRegion.put(seg, numVoxels);
 			avgPerRegion.put(seg, sum / numVoxels);
 		}
 		
+		System.out.println("avgPerRegion");
 		System.out.println(avgPerRegion);
 		Map<String, Float> namedAvg = new HashMap<String, Float>();
 		for(int i = 0; i < avgPerRegion.size(); i++)
-			namedAvg.put((String) LABELS.get((new Integer(i+1)).doubleValue()), avgPerRegion.get(i));
+			//TODO refactor all the mults by 10 out to a static field
+			namedAvg.put((String) LABELS.get((new Integer(10*(i+1))).doubleValue()), avgPerRegion.get(i));
 		
 		System.out.println(namedAvg);
 		return namedAvg;
@@ -162,7 +170,7 @@ public class AtlasRunner {
 		double[][][][] segments = new double[LABELS.size()][LV_ATLAS_DATA.length][LV_ATLAS_DATA.length][LV_ATLAS_DATA.length];
 		
 		for(int i = 0; i < 17; i++) {
-			final int ii = i;
+			final int ii = 10*i;
 			segments[i] = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
 				
 				public boolean predicate(Double v) {
@@ -216,6 +224,9 @@ public class AtlasRunner {
 		for(int i = 0; i < allVoxels.size() - 1; i++)
 			if(allVoxels.get(i).equals(allVoxels.get(i+1))) {
 				count++;
+				if(i == allVoxels.size() - 2)
+					//add the last item
+					numVoxels.put(allVoxels.get(i), count);
 			} else {
 				numVoxels.put(allVoxels.get(i), count);
 				count = 0;
@@ -250,15 +261,19 @@ public class AtlasRunner {
 							roiNotInAtlas++;
 						else
 						{
+							//System.out.println(LV_ATLAS_DATA[i][j][k]);
 							//System.out.println(LV_ATLAS_DATA[i][j][k] + ": " + (String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
-							if(LV_ATLAS_DATA[i][j][k] % 1 == 0) //if an integer
+							if(LV_ATLAS_DATA[i][j][k] % 10.0 == 0) { //if an integer
+								//System.out.println("ROI in Atlas with intensity " + LV_ATLAS_DATA[i][j][k]);
 								results.add((String) LABELS.get(LV_ATLAS_DATA[i][j][k]));
+							}
 						}
 					}
 		
 		System.out.println("Total ROI Voxels: " + totalROI);
 		System.out.println("ROI Voxels not in Atlas: " + roiNotInAtlas);
 		Collections.sort(results, new MyocardStringComparator());
+		//System.out.println(results);
 		return results;
 	}
 
@@ -354,7 +369,8 @@ public class AtlasRunner {
 	}
 
 	private static void populateLabels() {
-		LABEL_FILE = HUMAN_LV_ATLAS.aux_file.toString();
+		//LABEL_FILE = ATLAS_DIR + HUMAN_LV_ATLAS.aux_file.toString();
+		LABEL_FILE = ATLAS_DIR + "NewAtlasLabels.txt";
 		LABELS = new TreeBidiMap();
 		
 		Scanner scan = null;
