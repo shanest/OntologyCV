@@ -37,17 +37,24 @@ public class AtlasRunner {
 	private static final String MYOCARDIUM_OWL = "ontology/Myocardium-20100810.owl";
 	private static final String ATLAS_DIR = "../HumanTemplate/Redux/NoResampleMapping/";
 	private static final String ATLAS_VOL = "NewAtlasDef004_anal_32bit_flipvert.img"; //converting to ANALYZE did not affect results, i.e. data array the same
+	//private static final String ATLAS_VOL = "WsH_seg_updated_Labeledx10_FSLAffine_nn_def004.img"; //converting to ANALYZE did not affect results, i.e. data array the same
 	//private static final String T_VOL = "snpmTneg_flip.img";
 	private static final String T_VOL = "snpmTnegflipMasked.img";
 	private static final String ROI_FILE = "ROI_significant_imageFWE-.img";
-	
+	private static final String ICMJAC_FILE = "MeanICMJacobian_zerobg.img";
+	private static final String NICMJAC_FILE = "MeanNICMJacobian_zerobg.img";
+
 	private static Nifti1Dataset HUMAN_LV_ATLAS = null;
 	private static Nifti1Dataset LV_T = null;
 	private static Nifti1Dataset ROI = null;
+	private static Nifti1Dataset ICMJAC = null;
+	private static Nifti1Dataset NICMJAC = null;
 	// NOTE: [Z][Y][X] array
 	private static double[][][] LV_ATLAS_DATA = null;
 	private static double[][][] LV_T_DATA = null;
 	private static double[][][] ROI_DATA = null;
+	private static double[][][] ICMJAC_DATA = null;
+	private static double[][][] NICMJAC_DATA = null;
 	
 	//from aux_file
 	private static String LABEL_FILE = null;
@@ -65,6 +72,8 @@ public class AtlasRunner {
 		readAtlasVolume();
 		readTVolume();
 		readROIVolume();
+		readICMJacobian();
+		readNICMJacobian();
 
 		//if (HUMAN_LV_ATLAS.intent_code == Nifti1Dataset.NIFTI_INTENT_LABEL) {
 			//I obviously know the intent is LABEL, but this "if" is good practice
@@ -87,6 +96,9 @@ public class AtlasRunner {
 		
 		//RESULT: average T-values by region
 		Map<String, Float> avgTByRegion = avgTRegions();
+		Map<String, Float> avgICMJACByRegion = avgICMJACRegions();
+		Map<String, Float> avgNICMJACByRegion = avgNICMJACRegions();
+
 		
 		//RESULT: where is ROI located?
 		Map<String, Integer> regionsOfInterest = countStrings(listROIMyocardium());
@@ -112,9 +124,67 @@ public class AtlasRunner {
 		*/
 
 	}
-
-	private static Map<String, Float> avgTRegions() {
+	
+	private static Map<String, Float> avgByRegion(double[][][] data) {
+		Map<Integer, Integer> numVoxelsPerRegion = new HashMap<Integer, Integer>();
+		Map<Integer, Float> avgPerRegion = new HashMap<Integer, Float>();
 		
+		for(int seg = 0; seg < LABELS.size(); seg++) {
+			int numVoxels = 0;
+			float sum = 0;
+			final int segidx = 10*(seg + 1); //10 b/c intensities in this atlas are mult by 10
+			
+			double[][][] curSeg = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
+				
+				public boolean predicate(Double v) {
+					return v == segidx;
+				}
+				
+			});
+			
+			//NOTE these segments don't fully partition the deformed Atlas, b/c there are "transitions" w/ intensities in between these 17
+				
+			for(int i = 0; i < curSeg.length; i++)
+				for(int j = 0; j < curSeg[i].length; j++)
+					for(int k = 0; k < curSeg[i][j].length; k++) {
+						if(curSeg[i][j][k] != 0 && data[i][j][k] != 0 /* && !((new Double(Double.NaN)).equals(new Double(LV_T_DATA[i][j][k]))) */) {
+							//TODO Figure out why some regions never meet the above, simple criterion of overlap
+							numVoxels++;
+							sum += data[i][j][k];
+							//if((new Double(Double.NaN).equals(new Double(data[i][j][k]))))
+								//System.out.println("Data: " + data[i][j][k] + ", new sum: " + sum);
+						}
+					}
+			
+			System.out.println("Seg: " + seg + ", sum: " + sum + ", numVoxels: " + numVoxels);
+			numVoxelsPerRegion.put(seg, numVoxels);
+			avgPerRegion.put(seg, sum / numVoxels);
+		}
+		
+		System.out.println("avgPerRegion");
+		System.out.println(avgPerRegion);
+		Map<String, Float> namedAvg = new HashMap<String, Float>();
+		for(int i = 0; i < avgPerRegion.size(); i++)
+			//TODO refactor all the mults by 10 out to a static field
+			namedAvg.put((String) LABELS.get((new Integer(10*(i+1))).doubleValue()), avgPerRegion.get(i));
+		
+		System.out.println(namedAvg);
+		return namedAvg;
+	}
+	
+	private static Map<String, Float> avgICMJACRegions() {
+		return avgByRegion(ICMJAC_DATA);
+	}
+	
+	private static Map<String, Float> avgNICMJACRegions() {
+		return avgByRegion(NICMJAC_DATA);
+	}
+	
+	private static Map<String, Float> avgTRegions() {
+		return avgByRegion(LV_T_DATA);
+	}
+
+	private static Map<String, Float> avgTRegions2() {
 		Map<Integer, Integer> numVoxelsPerRegion = new HashMap<Integer, Integer>();
 		Map<Integer, Float> avgPerRegion = new HashMap<Integer, Float>();
 		
@@ -159,6 +229,7 @@ public class AtlasRunner {
 		
 		System.out.println(namedAvg);
 		return namedAvg;
+		
 	}
 
 	/**
@@ -363,6 +434,26 @@ public class AtlasRunner {
 
 		try {
 			ROI_DATA = ROI.readDoubleVol((short) 0);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private static void readNICMJacobian() {
+		NICMJAC = readVolume(ATLAS_DIR + NICMJAC_FILE);
+
+		try {
+			NICMJAC_DATA = NICMJAC.readDoubleVol((short) 0);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private static void readICMJacobian() {
+		ICMJAC = readVolume(ATLAS_DIR + ICMJAC_FILE);
+
+		try {
+			ICMJAC_DATA = ICMJAC.readDoubleVol((short) 0);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
