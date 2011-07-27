@@ -184,54 +184,6 @@ public class AtlasRunner {
 		return avgByRegion(LV_T_DATA);
 	}
 
-	private static Map<String, Float> avgTRegions2() {
-		Map<Integer, Integer> numVoxelsPerRegion = new HashMap<Integer, Integer>();
-		Map<Integer, Float> avgPerRegion = new HashMap<Integer, Float>();
-		
-		for(int seg = 0; seg < LABELS.size(); seg++) {
-			int numVoxels = 0;
-			float sum = 0;
-			final int segidx = 10*(seg + 1); //10 b/c intensities in this atlas are mult by 10
-			
-			double[][][] curSeg = filterByPredicate(LV_ATLAS_DATA, new Predicate<Double>() {
-				
-				public boolean predicate(Double v) {
-					return v == segidx;
-				}
-				
-			});
-			
-			//NOTE these segments don't fully partition the deformed Atlas, b/c there are "transitions" w/ intensities in between these 17
-				
-			for(int i = 0; i < curSeg.length; i++)
-				for(int j = 0; j < curSeg[i].length; j++)
-					for(int k = 0; k < curSeg[i][j].length; k++) {
-						if(curSeg[i][j][k] != 0 && LV_T_DATA[i][j][k] != 0 /* && !((new Double(Double.NaN)).equals(new Double(LV_T_DATA[i][j][k]))) */) {
-							//TODO Figure out why some regions never meet the above, simple criterion of overlap
-							numVoxels++;
-							sum += LV_T_DATA[i][j][k];
-							//if((new Double(Double.NaN).equals(new Double(LV_T_DATA[i][j][k]))))
-							//System.out.println("Data: " + LV_T_DATA[i][j][k] + ", new sum: " + sum);
-						}
-					}
-			
-			System.out.println("Seg: " + seg + ", sum: " + sum + ", numVoxels: " + numVoxels);
-			numVoxelsPerRegion.put(seg, numVoxels);
-			avgPerRegion.put(seg, sum / numVoxels);
-		}
-		
-		System.out.println("avgPerRegion");
-		System.out.println(avgPerRegion);
-		Map<String, Float> namedAvg = new HashMap<String, Float>();
-		for(int i = 0; i < avgPerRegion.size(); i++)
-			//TODO refactor all the mults by 10 out to a static field
-			namedAvg.put((String) LABELS.get((new Integer(10*(i+1))).doubleValue()), avgPerRegion.get(i));
-		
-		System.out.println(namedAvg);
-		return namedAvg;
-		
-	}
-
 	/**
 	 * Returns a 17 x 256 x 256 x 256 array where resegment()[i] is the ith region of myocardium only.
 	 * 
